@@ -1,96 +1,264 @@
 (() => {
-  const key = "creatorkit-pro-v1";
-  const state = JSON.parse(localStorage.getItem(key) || "null") || {
-    ideas: [
-      { id: crypto.randomUUID(), hook: "Three mistakes killing your watch time", platform: "Reels", due: "2026-05-24" },
-      { id: crypto.randomUUID(), hook: "Behind-the-scenes brand deal recap", platform: "TikTok", due: "2026-05-25" },
-    ],
-    deals: [
-      { id: crypto.randomUUID(), brand: "GlowCo", value: 2200, stage: "Pitch Sent" },
-      { id: crypto.randomUUID(), brand: "PeakFuel", value: 4300, stage: "Negotiating" },
-    ],
+  const app = document.querySelector("#app");
+  const state = {
+    ideas: [],
+    campaigns: [],
+    deliverables: [],
+    stats: {
+      totalIdeas: 0,
+      pipelineValue: 0,
+      activeCampaigns: 0,
+      dueThisWeek: 0,
+    },
   };
-  const save = () => localStorage.setItem(key, JSON.stringify(state));
 
-  document.head.insertAdjacentHTML("beforeend", `<style>
-    body{margin:0;background:#0a0812;color:#f3eefe;font:16px/1.45 system-ui,sans-serif}main{max-width:1180px;margin:0 auto;padding:30px 20px 48px}
-    .ck-grid,.cards,.list{display:grid;gap:16px}.hero,.card{background:#151026;border:1px solid #3e3169;border-radius:22px;padding:20px}
-    .cards{grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}.stats{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}.stat{background:#1c1433;border-radius:14px;padding:14px}
-    form{display:grid;gap:10px}.row{display:grid;gap:10px;grid-template-columns:repeat(2,minmax(0,1fr))}input,select,button{font:inherit;padding:11px 12px;border-radius:12px;border:1px solid #5e4aa5}
-    input,select{background:#110c1d;color:#fff}button{background:#b699ff;color:#160f29;font-weight:700;cursor:pointer}.item{background:#1c1433;border-radius:14px;padding:14px;display:grid;gap:5px}.meta{color:#cbb8f8}
-    @media (max-width:760px){.row{grid-template-columns:1fr}}
-  </style>`);
+  const money = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  });
 
-  const main = document.querySelector("main");
-
-  function render() {
-    const pipeline = state.deals.reduce((sum, deal) => sum + Number(deal.value), 0);
-    main.innerHTML = `
-      <div class="ck-grid">
-        <section class="hero">
-          <h1>CreatorKit Pro</h1>
-          <p class="meta">Track content hooks, due dates, and brand-deal pipeline with a saved creator dashboard.</p>
-          <div class="stats">
-            <div class="stat"><strong>${state.ideas.length}</strong><div class="meta">Planned posts</div></div>
-            <div class="stat"><strong>${state.deals.length}</strong><div class="meta">Active deals</div></div>
-            <div class="stat"><strong>$${pipeline.toLocaleString()}</strong><div class="meta">Pipeline value</div></div>
-          </div>
-        </section>
-        <section class="cards">
-          <article class="card">
-            <h2>Hook Lab</h2>
-            <form id="ideaForm">
-              <input name="hook" placeholder="Hook or content idea" required>
-              <div class="row">
-                <select name="platform"><option>Reels</option><option>TikTok</option><option>YouTube</option><option>Email</option></select>
-                <input name="due" type="date" required>
-              </div>
-              <button type="submit">Save Content Idea</button>
-            </form>
-            <div class="list">${state.ideas.map((idea) => `<div class="item"><b>${idea.hook}</b><span>${idea.platform}</span><span class="meta">Due ${idea.due}</span></div>`).join("")}</div>
-          </article>
-          <article class="card">
-            <h2>Brand Deals</h2>
-            <form id="dealForm">
-              <div class="row">
-                <input name="brand" placeholder="Brand" required>
-                <input name="value" type="number" min="0" placeholder="Value" required>
-              </div>
-              <select name="stage"><option>Researching</option><option>Pitch Sent</option><option>Negotiating</option><option>Closed</option></select>
-              <button type="submit">Add Deal</button>
-            </form>
-            <div class="list">${state.deals.map((deal) => `<div class="item"><b>${deal.brand}</b><span>$${Number(deal.value).toLocaleString()}</span><span class="meta">${deal.stage}</span></div>`).join("")}</div>
-          </article>
-        </section>
-      </div>`;
-
-    document.querySelector("#ideaForm").addEventListener("submit", (event) => {
-      event.preventDefault();
-      const form = new FormData(event.currentTarget);
-      state.ideas.unshift({
-        id: crypto.randomUUID(),
-        hook: String(form.get("hook")),
-        platform: String(form.get("platform")),
-        due: String(form.get("due")),
-      });
-      save();
-      render();
-    });
-
-    document.querySelector("#dealForm").addEventListener("submit", (event) => {
-      event.preventDefault();
-      const form = new FormData(event.currentTarget);
-      state.deals.unshift({
-        id: crypto.randomUUID(),
-        brand: String(form.get("brand")),
-        value: Number(form.get("value") || 0),
-        stage: String(form.get("stage")),
-      });
-      save();
-      render();
+  function formatDate(value) {
+    return new Date(`${value}T12:00:00`).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
     });
   }
 
-  save();
-  render();
+  async function request(url, payload) {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: "Request failed" }));
+      throw new Error(error.error || "Request failed");
+    }
+
+    return response.json();
+  }
+
+  function bindForms() {
+    document.querySelector("#ideaForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      await request("/api/ideas", {
+        title: String(form.get("title")),
+        platform: String(form.get("platform")),
+        hook: String(form.get("hook")),
+        status: String(form.get("status")),
+        dueDate: String(form.get("dueDate")),
+      });
+      event.currentTarget.reset();
+      await load();
+    });
+
+    document.querySelector("#campaignForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      await request("/api/campaigns", {
+        brand: String(form.get("brand")),
+        value: Number(form.get("value") || 0),
+        stage: String(form.get("stage")),
+        contactName: String(form.get("contactName")),
+        dueDate: String(form.get("dueDate")),
+      });
+      event.currentTarget.reset();
+      await load();
+    });
+
+    document.querySelector("#deliverableForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      await request("/api/deliverables", {
+        campaignId: String(form.get("campaignId")) || null,
+        label: String(form.get("label")),
+        channel: String(form.get("channel")),
+        status: String(form.get("status")),
+        publishDate: String(form.get("publishDate")),
+      });
+      event.currentTarget.reset();
+      await load();
+    });
+  }
+
+  function renderCollection(items, mapper, emptyText) {
+    if (!items.length) {
+      return `<div class="empty">${emptyText}</div>`;
+    }
+
+    return items.map(mapper).join("");
+  }
+
+  function render() {
+    app.innerHTML = `
+      <section class="metrics">
+        <article class="metric">
+          <span class="muted">Planned content</span>
+          <strong>${state.stats.totalIdeas}</strong>
+          <span class="muted">Ideas and scripts in motion</span>
+        </article>
+        <article class="metric">
+          <span class="muted">Pipeline value</span>
+          <strong>${money.format(state.stats.pipelineValue)}</strong>
+          <span class="muted">Across active brand campaigns</span>
+        </article>
+        <article class="metric">
+          <span class="muted">Active campaigns</span>
+          <strong>${state.stats.activeCampaigns}</strong>
+          <span class="muted">Open sponsor conversations</span>
+        </article>
+        <article class="metric">
+          <span class="muted">Due this week</span>
+          <strong>${state.stats.dueThisWeek}</strong>
+          <span class="muted">Upcoming content deadlines</span>
+        </article>
+      </section>
+
+      <section class="board">
+        <article class="panel">
+          <h2>Content Pipeline</h2>
+          <p class="muted">Capture hooks, assign platforms, and keep production dates visible.</p>
+          <form id="ideaForm">
+            <input name="title" placeholder="Content title" required>
+            <textarea name="hook" placeholder="Opening hook or angle" required></textarea>
+            <div class="row">
+              <select name="platform">
+                <option>Instagram Reels</option>
+                <option>TikTok</option>
+                <option>YouTube Shorts</option>
+                <option>Email</option>
+              </select>
+              <select name="status">
+                <option>Script Draft</option>
+                <option>Editing</option>
+                <option>Scheduled</option>
+                <option>Published</option>
+              </select>
+            </div>
+            <input name="dueDate" type="date" required>
+            <button type="submit">Save content item</button>
+          </form>
+          <div class="collection">
+            ${renderCollection(
+              state.ideas,
+              (idea) => `
+                <div class="card">
+                  <strong>${idea.title}</strong>
+                  <span class="pill">${idea.platform}</span>
+                  <p>${idea.hook}</p>
+                  <span class="muted">${idea.status} • due ${formatDate(idea.due_date)}</span>
+                </div>
+              `,
+              "No ideas are in the production queue yet."
+            )}
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2>Brand Campaigns</h2>
+          <p class="muted">Track deal stage, owner contact, deadline, and pipeline value.</p>
+          <form id="campaignForm">
+            <div class="row">
+              <input name="brand" placeholder="Brand name" required>
+              <input name="contactName" placeholder="Primary contact" required>
+            </div>
+            <div class="row">
+              <input name="value" type="number" min="0" placeholder="Campaign value">
+              <input name="dueDate" type="date" required>
+            </div>
+            <select name="stage">
+              <option>Researching</option>
+              <option>Pitch Sent</option>
+              <option>Negotiating</option>
+              <option>Contract Review</option>
+              <option>Closed</option>
+            </select>
+            <button type="submit">Add campaign</button>
+          </form>
+          <div class="collection">
+            ${renderCollection(
+              state.campaigns,
+              (campaign) => `
+                <div class="card">
+                  <strong>${campaign.brand}</strong>
+                  <span class="pill">${campaign.stage}</span>
+                  <p>${money.format(campaign.value)} • contact ${campaign.contact_name}</p>
+                  <span class="muted">Decision target ${formatDate(campaign.due_date)}</span>
+                </div>
+              `,
+              "No campaigns are being tracked yet."
+            )}
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2>Deliverables</h2>
+          <p class="muted">Keep sponsored clips, cutdowns, and publish dates tied to live campaigns.</p>
+          <form id="deliverableForm">
+            <select name="campaignId">
+              <option value="">Standalone deliverable</option>
+              ${state.campaigns
+                .map((campaign) => `<option value="${campaign.id}">${campaign.brand}</option>`)
+                .join("")}
+            </select>
+            <input name="label" placeholder="Deliverable name" required>
+            <div class="row">
+              <select name="channel">
+                <option>TikTok</option>
+                <option>Instagram Stories</option>
+                <option>Instagram Reels</option>
+                <option>YouTube Shorts</option>
+              </select>
+              <select name="status">
+                <option>Shot List Ready</option>
+                <option>Needs Review</option>
+                <option>Scheduled</option>
+                <option>Delivered</option>
+              </select>
+            </div>
+            <input name="publishDate" type="date" required>
+            <button type="submit">Add deliverable</button>
+          </form>
+          <div class="collection">
+            ${renderCollection(
+              state.deliverables,
+              (item) => `
+                <div class="card">
+                  <strong>${item.label}</strong>
+                  <span class="pill">${item.channel}</span>
+                  <p>${item.brand || "Standalone"} • ${item.status}</p>
+                  <span class="muted">Publish ${formatDate(item.publish_date)}</span>
+                </div>
+              `,
+              "No deliverables are queued yet."
+            )}
+          </div>
+        </article>
+      </section>
+    `;
+
+    bindForms();
+  }
+
+  async function load() {
+    app.innerHTML = '<div class="loading-card">Refreshing creator workspace...</div>';
+    const response = await fetch("/api/bootstrap");
+    if (!response.ok) {
+      throw new Error("Failed to load CreatorKit Pro");
+    }
+
+    const payload = await response.json();
+    state.ideas = payload.ideas;
+    state.campaigns = payload.campaigns;
+    state.deliverables = payload.deliverables;
+    state.stats = payload.stats;
+    render();
+  }
+
+  load().catch((error) => {
+    app.innerHTML = `<div class="loading-card">CreatorKit Pro could not load: ${error.message}</div>`;
+  });
 })();
