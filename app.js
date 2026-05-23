@@ -1,6 +1,7 @@
 (() => {
   const app = document.querySelector("#app");
   const state = {
+    activeTab: "studio",
     ideas: [],
     campaigns: [],
     deliverables: [],
@@ -11,6 +12,7 @@
       dueThisWeek: 0,
     },
   };
+  const tabs = [...document.querySelectorAll(".subnav-tab")];
 
   const money = new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -92,7 +94,216 @@
     return items.map(mapper).join("");
   }
 
+  function bindTabs() {
+    tabs.forEach((tab) => {
+      tab.classList.toggle("active", tab.dataset.tab === state.activeTab);
+      tab.onclick = () => {
+        state.activeTab = tab.dataset.tab;
+        render();
+      };
+    });
+  }
+
+  function renderStudio() {
+    const nextIdea = state.ideas[0];
+    return `
+      <section class="split-layout">
+        <article class="panel spotlight">
+          <span class="muted">Next publish target</span>
+          ${nextIdea ? `
+            <h2>${nextIdea.title}</h2>
+            <p>${nextIdea.hook}</p>
+            <div class="spotlight-grid">
+              <div><span class="muted">Platform</span><strong>${nextIdea.platform}</strong></div>
+              <div><span class="muted">Status</span><strong>${nextIdea.status}</strong></div>
+              <div><span class="muted">Due</span><strong>${formatDate(nextIdea.due_date)}</strong></div>
+              <div><span class="muted">Ideas queued</span><strong>${state.ideas.length}</strong></div>
+            </div>
+          ` : `<div class="empty">No idea is queued for production yet.</div>`}
+        </article>
+        <article class="panel">
+          <h2>Studio Intake</h2>
+          <p class="muted">Capture the next concept without dropping into the rest of the system.</p>
+          <form id="ideaForm">
+            <input name="title" placeholder="Content title" required>
+            <textarea name="hook" placeholder="Opening hook or angle" required></textarea>
+            <div class="row">
+              <select name="platform">
+                <option>Instagram Reels</option>
+                <option>TikTok</option>
+                <option>YouTube Shorts</option>
+                <option>Email</option>
+              </select>
+              <select name="status">
+                <option>Script Draft</option>
+                <option>Editing</option>
+                <option>Scheduled</option>
+                <option>Published</option>
+              </select>
+            </div>
+            <input name="dueDate" type="date" required>
+            <button type="submit">Save content item</button>
+          </form>
+        </article>
+      </section>
+      <section class="panel">
+        <h2>Idea Queue</h2>
+        <div class="collection compact-cards">
+          ${renderCollection(
+            state.ideas,
+            (idea) => `
+              <div class="card">
+                <strong>${idea.title}</strong>
+                <span class="pill">${idea.platform}</span>
+                <p>${idea.hook}</p>
+                <span class="muted">${idea.status} • due ${formatDate(idea.due_date)}</span>
+              </div>
+            `,
+            "No ideas are in the production queue yet."
+          )}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderPipeline() {
+    return `
+      <section class="split-layout">
+        <article class="panel">
+          <h2>Brand Campaigns</h2>
+          <p class="muted">Track deal stage, owner contact, deadline, and pipeline value.</p>
+          <form id="campaignForm">
+            <div class="row">
+              <input name="brand" placeholder="Brand name" required>
+              <input name="contactName" placeholder="Primary contact" required>
+            </div>
+            <div class="row">
+              <input name="value" type="number" min="0" placeholder="Campaign value">
+              <input name="dueDate" type="date" required>
+            </div>
+            <select name="stage">
+              <option>Researching</option>
+              <option>Pitch Sent</option>
+              <option>Negotiating</option>
+              <option>Contract Review</option>
+              <option>Closed</option>
+            </select>
+            <button type="submit">Add campaign</button>
+          </form>
+        </article>
+        <article class="panel stage-board">
+          <h2>Pipeline Board</h2>
+          <div class="stage-columns">
+            ${["Researching", "Pitch Sent", "Negotiating", "Contract Review", "Closed"].map((stage) => `
+              <div class="stage-column">
+                <h3>${stage}</h3>
+                ${renderCollection(
+                  state.campaigns.filter((campaign) => campaign.stage === stage),
+                  (campaign) => `
+                    <div class="card slim">
+                      <strong>${campaign.brand}</strong>
+                      <p>${money.format(campaign.value)} • ${campaign.contact_name}</p>
+                      <span class="muted">${formatDate(campaign.due_date)}</span>
+                    </div>
+                  `,
+                  "No campaigns"
+                )}
+              </div>
+            `).join("")}
+          </div>
+        </article>
+      </section>
+    `;
+  }
+
+  function renderDeliverables() {
+    return `
+      <section class="split-layout">
+        <article class="panel">
+          <h2>Deliverables</h2>
+          <p class="muted">Keep sponsored clips, cutdowns, and publish dates tied to live campaigns.</p>
+          <form id="deliverableForm">
+            <select name="campaignId">
+              <option value="">Standalone deliverable</option>
+              ${state.campaigns.map((campaign) => `<option value="${campaign.id}">${campaign.brand}</option>`).join("")}
+            </select>
+            <input name="label" placeholder="Deliverable name" required>
+            <div class="row">
+              <select name="channel">
+                <option>TikTok</option>
+                <option>Instagram Stories</option>
+                <option>Instagram Reels</option>
+                <option>YouTube Shorts</option>
+              </select>
+              <select name="status">
+                <option>Shot List Ready</option>
+                <option>Needs Review</option>
+                <option>Scheduled</option>
+                <option>Delivered</option>
+              </select>
+            </div>
+            <input name="publishDate" type="date" required>
+            <button type="submit">Add deliverable</button>
+          </form>
+        </article>
+        <article class="panel">
+          <h2>Fulfillment Queue</h2>
+          <div class="collection">
+            ${renderCollection(
+              state.deliverables,
+              (item) => `
+                <div class="card">
+                  <strong>${item.label}</strong>
+                  <span class="pill">${item.channel}</span>
+                  <p>${item.brand || "Standalone"} • ${item.status}</p>
+                  <span class="muted">Publish ${formatDate(item.publish_date)}</span>
+                </div>
+              `,
+              "No deliverables are queued yet."
+            )}
+          </div>
+        </article>
+      </section>
+    `;
+  }
+
+  function renderCalendar() {
+    const allItems = [
+      ...state.ideas.map((idea) => ({ type: "Idea", title: idea.title, date: idea.due_date, meta: `${idea.platform} • ${idea.status}` })),
+      ...state.campaigns.map((campaign) => ({ type: "Campaign", title: campaign.brand, date: campaign.due_date, meta: campaign.stage })),
+      ...state.deliverables.map((item) => ({ type: "Deliverable", title: item.label, date: item.publish_date, meta: `${item.channel} • ${item.status}` })),
+    ].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+    return `
+      <section class="panel">
+        <h2>Production Calendar</h2>
+        <p class="muted">A single timeline across content, sponsor work, and delivery dates.</p>
+        <div class="calendar-list">
+          ${renderCollection(
+            allItems,
+            (item) => `
+              <article class="calendar-item">
+                <div>
+                  <span class="pill">${item.type}</span>
+                  <strong>${item.title}</strong>
+                  <p>${item.meta}</p>
+                </div>
+                <span class="muted">${formatDate(item.date)}</span>
+              </article>
+            `,
+            "No scheduled work is on the calendar yet."
+          )}
+        </div>
+      </section>
+    `;
+  }
+
   function render() {
+    let view = renderStudio();
+    if (state.activeTab === "pipeline") view = renderPipeline();
+    if (state.activeTab === "deliverables") view = renderDeliverables();
+    if (state.activeTab === "calendar") view = renderCalendar();
+
     app.innerHTML = `
       <section class="metrics">
         <article class="metric">
@@ -117,129 +328,10 @@
         </article>
       </section>
 
-      <section class="board">
-        <article class="panel">
-          <h2>Content Pipeline</h2>
-          <p class="muted">Capture hooks, assign platforms, and keep production dates visible.</p>
-          <form id="ideaForm">
-            <input name="title" placeholder="Content title" required>
-            <textarea name="hook" placeholder="Opening hook or angle" required></textarea>
-            <div class="row">
-              <select name="platform">
-                <option>Instagram Reels</option>
-                <option>TikTok</option>
-                <option>YouTube Shorts</option>
-                <option>Email</option>
-              </select>
-              <select name="status">
-                <option>Script Draft</option>
-                <option>Editing</option>
-                <option>Scheduled</option>
-                <option>Published</option>
-              </select>
-            </div>
-            <input name="dueDate" type="date" required>
-            <button type="submit">Save content item</button>
-          </form>
-          <div class="collection">
-            ${renderCollection(
-              state.ideas,
-              (idea) => `
-                <div class="card">
-                  <strong>${idea.title}</strong>
-                  <span class="pill">${idea.platform}</span>
-                  <p>${idea.hook}</p>
-                  <span class="muted">${idea.status} • due ${formatDate(idea.due_date)}</span>
-                </div>
-              `,
-              "No ideas are in the production queue yet."
-            )}
-          </div>
-        </article>
-
-        <article class="panel">
-          <h2>Brand Campaigns</h2>
-          <p class="muted">Track deal stage, owner contact, deadline, and pipeline value.</p>
-          <form id="campaignForm">
-            <div class="row">
-              <input name="brand" placeholder="Brand name" required>
-              <input name="contactName" placeholder="Primary contact" required>
-            </div>
-            <div class="row">
-              <input name="value" type="number" min="0" placeholder="Campaign value">
-              <input name="dueDate" type="date" required>
-            </div>
-            <select name="stage">
-              <option>Researching</option>
-              <option>Pitch Sent</option>
-              <option>Negotiating</option>
-              <option>Contract Review</option>
-              <option>Closed</option>
-            </select>
-            <button type="submit">Add campaign</button>
-          </form>
-          <div class="collection">
-            ${renderCollection(
-              state.campaigns,
-              (campaign) => `
-                <div class="card">
-                  <strong>${campaign.brand}</strong>
-                  <span class="pill">${campaign.stage}</span>
-                  <p>${money.format(campaign.value)} • contact ${campaign.contact_name}</p>
-                  <span class="muted">Decision target ${formatDate(campaign.due_date)}</span>
-                </div>
-              `,
-              "No campaigns are being tracked yet."
-            )}
-          </div>
-        </article>
-
-        <article class="panel">
-          <h2>Deliverables</h2>
-          <p class="muted">Keep sponsored clips, cutdowns, and publish dates tied to live campaigns.</p>
-          <form id="deliverableForm">
-            <select name="campaignId">
-              <option value="">Standalone deliverable</option>
-              ${state.campaigns
-                .map((campaign) => `<option value="${campaign.id}">${campaign.brand}</option>`)
-                .join("")}
-            </select>
-            <input name="label" placeholder="Deliverable name" required>
-            <div class="row">
-              <select name="channel">
-                <option>TikTok</option>
-                <option>Instagram Stories</option>
-                <option>Instagram Reels</option>
-                <option>YouTube Shorts</option>
-              </select>
-              <select name="status">
-                <option>Shot List Ready</option>
-                <option>Needs Review</option>
-                <option>Scheduled</option>
-                <option>Delivered</option>
-              </select>
-            </div>
-            <input name="publishDate" type="date" required>
-            <button type="submit">Add deliverable</button>
-          </form>
-          <div class="collection">
-            ${renderCollection(
-              state.deliverables,
-              (item) => `
-                <div class="card">
-                  <strong>${item.label}</strong>
-                  <span class="pill">${item.channel}</span>
-                  <p>${item.brand || "Standalone"} • ${item.status}</p>
-                  <span class="muted">Publish ${formatDate(item.publish_date)}</span>
-                </div>
-              `,
-              "No deliverables are queued yet."
-            )}
-          </div>
-        </article>
-      </section>
+      ${view}
     `;
 
+    bindTabs();
     bindForms();
   }
 

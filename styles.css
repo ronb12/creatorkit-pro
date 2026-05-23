@@ -81,6 +81,27 @@ body {
   gap: 18px;
 }
 
+.subnav {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.subnav-tab {
+  width: auto;
+  border: 1px solid rgba(152, 190, 255, 0.18);
+  background: rgba(8, 14, 28, 0.78);
+  color: #b9c8e7;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.subnav-tab.active {
+  color: #1a2030;
+  background: linear-gradient(135deg, #ff9759 0%, #ffd256 100%);
+}
+
 .metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -103,6 +124,55 @@ body {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
+}
+
+.split-layout {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 18px;
+}
+
+.spotlight-grid,
+.stage-columns,
+.calendar-list {
+  display: grid;
+  gap: 14px;
+}
+
+.spotlight-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.compact-cards {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.stage-columns {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.stage-column,
+.calendar-item {
+  display: grid;
+  gap: 10px;
+}
+
+.stage-column h3 {
+  margin: 0;
+}
+
+.slim {
+  padding: 14px;
+}
+
+.calendar-item {
+  grid-template-columns: 1fr auto;
+  align-items: start;
+  border-radius: 18px;
+  padding: 16px;
+  background: rgba(15, 24, 46, 0.95);
+  border: 1px solid rgba(154, 192, 255, 0.16);
 }
 
 .panel h2 {
@@ -190,7 +260,10 @@ button {
 @media (max-width: 980px) {
   .hero,
   .metrics,
-  .board {
+  .board,
+  .split-layout,
+  .stage-columns,
+  .spotlight-grid {
     grid-template-columns: 1fr;
   }
 }
